@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -23,7 +25,9 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	runAuth()
+	//runAuth()
+	// GetUserID()
+	GetUserLikes("USERID")
 }
 
 type AuthServer struct {
@@ -52,6 +56,7 @@ func NewAuthServer(ctx context.Context, port int, cancel context.CancelFunc) *Au
 		port:         p,
 		clientID:     os.Getenv("CLIENT_ID"),
 		clientSecret: os.Getenv("CLIENT_SECRET"),
+		client:       &http.Client{},
 	}
 
 	mux.HandleFunc("/auth_callback", authServer.authCallbackStopEndpoint)
@@ -69,7 +74,7 @@ func runAuth() {
 }
 
 func (s *AuthServer) OpenBrowserForLogin() {
-	scopes := []string{"tweet.read", "users.read", "like.read"}
+	scopes := []string{"tweet.read", "users.read", "like.read", "offline.access"}
 	authURL := s.setupOAuth2URL(scopes)
 
 	browser.OpenURL(authURL)
@@ -101,24 +106,101 @@ func (s *AuthServer) setupOAuth2URL(scopes []string) string {
 }
 
 func (s *AuthServer) authCallbackStopEndpoint(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("code")
-	if q == "123" {
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
+
+	if code == "123" {
 		s.cancel()
 	}
+	log.Println(code)
+	log.Println(state)
+	//verify state and get access code if successful
+	s.GetAccessToken(code)
 	w.Write([]byte("OK"))
 }
 
-// func (s *AuthServer) GetAccessToken(accessCode string) {
-// 	creds := s.clientID + ":" + s.clientSecret
-// 	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(creds))
+func (s *AuthServer) GetAccessToken(accessCode string) {
+	creds := s.clientID + ":" + s.clientSecret
+	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(creds))
+	authEndpoint := "https://api.twitter.com/2/oauth2/token"
 
-// 	http.Post()
+	data := url.Values{}
+	data.Set("code", accessCode)
+	data.Set("grant_type", "authorization_code")
+	data.Set("client_id", s.clientID)
+	//data.Set("redirect_uri", serverURL)
+	data.Set("code_verifier", "stringstring")
+	ed := data.Encode() + "&redirect_uri=" + serverURL + "/auth_callback"
+	fmt.Println(ed)
+	r, err := http.NewRequest("POST", authEndpoint, strings.NewReader(ed))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	r.Header.Add("Authorization", "Basic "+encodedCredentials)
 
-// }
+	res, err := s.client.Do(r)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println(res.Status)
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println(string(body))
+}
 
 func setupScopesURL(scopes []string) string {
 	scopeList := strings.Join(scopes, "%20")
 	codeStr := "&code_challenge=" + "stringstring" + "&code_challenge_method=plain"
 	urlParams := scopeList + codeStr
 	return urlParams
+}
+
+func GetUserID() {
+	c := &http.Client{}
+
+	r, err := http.NewRequest("GET", "https://api.twitter.com/2/users/me", nil)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	r.Header.Add("Authorization", "Bearer "+"BEARERTOKEN")
+	res, err := c.Do(r)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(res.Status)
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println(string(body))
+
+}
+
+func GetUserLikes(userID string) {
+	c := &http.Client{}
+	u := fmt.Sprintf("https://api.twitter.com/2/users/%s/liked_tweets", userID)
+	r, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	r.Header.Add("Authorization", "Bearer "+"BEARERTOKEN")
+	res, err := c.Do(r)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(res.Status)
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println(string(body))
+
 }
