@@ -21,7 +21,6 @@ func main() {
 	//runAuth()
 	// GetUserID()
 	GetUserLikes("6846262")
-
 }
 
 func runAuth() {
