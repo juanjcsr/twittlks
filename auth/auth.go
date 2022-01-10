@@ -29,6 +29,12 @@ type AuthServer struct {
 	scopes       []string
 }
 
+type AuthClient struct {
+	client       *http.Client
+	refreshToken string
+	authToken    string
+}
+
 func NewAuthServer(ctx context.Context, port int, scopes []string, cancel context.CancelFunc) *AuthServer {
 
 	p := strconv.Itoa(port)
@@ -53,6 +59,30 @@ func NewAuthServer(ctx context.Context, port int, scopes []string, cancel contex
 	return &authServer
 }
 
+func NewAuthClient(authToken string, refreshToken string) *AuthClient {
+	return &AuthClient{
+		authToken:    authToken,
+		refreshToken: refreshToken,
+		client:       &http.Client{},
+	}
+}
+
+func (c *AuthClient) Get(URL string, params url.Values) (*http.Response, error) {
+	r, err := http.NewRequest("GET", URL, nil)
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Add("Authorization", "Bearer "+c.authToken)
+	res, err := c.client.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode == http.StatusUnauthorized {
+		//try to refresh token
+	}
+	return res, nil
+}
+
 func (s *AuthServer) OpenBrowserForLogin() {
 	authURL := s.setupOAuth2URL(s.scopes)
 
@@ -68,6 +98,36 @@ func (s *AuthServer) setupOAuth2URL(scopes []string) string {
 	code := "code_challenge=" + "stringstring" + "&code_challenge_method=plain"
 	authURL := fmt.Sprintf("%s?%s&%s&%s&%s&%s&%s", oauth2URL, responseType, clientID, state, redirectURI, scopeList, code)
 	return authURL
+}
+
+func (s *AuthServer) GetRefreshToken(refreshToken string) {
+	creds := s.clientID + ":" + s.clientSecret
+	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(creds))
+	authEndpoint := "https://api.twitter.com/2/oauth2/token"
+
+	data := url.Values{}
+	data.Set("refresh_token", refreshToken)
+	data.Set("grant_type", "refresh_token")
+	data.Set("client_id", s.clientID)
+
+	r, err := http.NewRequest("POST", authEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	r.Header.Add("Authorization", "Basic "+encodedCredentials)
+
+	res, err := s.client.Do(r)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println(res.Status)
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println(string(body))
 }
 
 func (s *AuthServer) GetAccessToken(accessCode string) {
