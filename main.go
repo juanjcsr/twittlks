@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/joho/godotenv"
 	"github.com/juanjcsr/twittlks/auth"
+	"github.com/spf13/viper"
 )
 
 func main() {
@@ -18,12 +20,22 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	//runAuth()
-	// GetUserID()
-	GetUserLikes("6846262")
+	tokens, err := setupViperConfig()
+	if err != nil {
+		log.Println(err)
+		tokens = runAuth()
+		viper.Set("app.expires", tokens.ExpiresIn)
+		viper.Set("app.token_type", tokens.TokenType)
+		viper.Set("app.access_token", tokens.AccessToken)
+		viper.Set("app.refresh_token", tokens.RefreshToken)
+		viper.Set("app.scope", tokens.Scope)
+		viper.WriteConfig()
+	}
+	authClient := auth.NewAuthClient(*tokens)
+	GetAuthedUserLikes("6846262", *authClient)
 }
 
-func runAuth() {
+func runAuth() *auth.AccessTokens {
 	srvExitDone := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	srvExitDone.Add(1)
@@ -32,50 +44,54 @@ func runAuth() {
 	s.OpenBrowserForLogin()
 	s.StartServer(srvExitDone)
 	srvExitDone.Wait()
+	fmt.Println(s.Tokens)
+	return &s.Tokens
 }
 
-func GetUserID() {
-	c := &http.Client{}
-
-	r, err := http.NewRequest("GET", "https://api.twitter.com/2/users/me", nil)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	r.Header.Add("Authorization", "Bearer "+"BEARERTOKEN")
-	res, err := c.Do(r)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println(res.Status)
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println(string(body))
-
-}
-
-func GetUserLikes(userID string) {
-	c := &http.Client{}
+func GetAuthedUserLikes(userID string, ac auth.AuthClient) {
 	u := fmt.Sprintf("https://api.twitter.com/2/users/%s/liked_tweets", userID)
-	r, err := http.NewRequest("GET", u, nil)
+	res, err := ac.Get(u, nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	r.Header.Add("Authorization", "Bearer "+"BEARER")
-	res, err := c.Do(r)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println(res.Status)
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	log.Println(string(body))
+}
+
+func setupViperConfig() (*auth.AccessTokens, error) {
+	viper.SetConfigName("tokens")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	viper.AutomaticEnv()
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		fmt.Println("fatal error config file, default \n", err)
+		os.Exit(1)
+	}
+
+	expiresInStr := viper.GetString("app.expires")
+	tokenType := viper.GetString("app.token_type")
+	accessToken := viper.GetString("app.access_token")
+	refreshToken := viper.GetString("app.refresh_token")
+	scope := viper.GetString("app.scope")
+
+	if expiresInStr == "" || tokenType == "" || accessToken == "" || refreshToken == "" {
+		return nil, fmt.Errorf("no config file")
+	}
+	expiresIn, _ := strconv.Atoi(expiresInStr)
+	tokens := auth.AccessTokens{
+		TokenType:    tokenType,
+		ExpiresIn:    expiresIn,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Scope:        scope,
+	}
+
+	return &tokens, err
 
 }

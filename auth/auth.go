@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -27,12 +27,22 @@ type AuthServer struct {
 	clientID     string
 	clientSecret string
 	scopes       []string
+	Tokens       AccessTokens
 }
 
 type AuthClient struct {
 	client       *http.Client
-	refreshToken string
-	authToken    string
+	tokens       AccessTokens
+	clientID     string
+	clientSecret string
+}
+
+type AccessTokens struct {
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	AccessToken  string `json:"access_token"`
+	Scope        string `json:"scope"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 func NewAuthServer(ctx context.Context, port int, scopes []string, cancel context.CancelFunc) *AuthServer {
@@ -59,11 +69,12 @@ func NewAuthServer(ctx context.Context, port int, scopes []string, cancel contex
 	return &authServer
 }
 
-func NewAuthClient(authToken string, refreshToken string) *AuthClient {
+func NewAuthClient(tokens AccessTokens) *AuthClient {
 	return &AuthClient{
-		authToken:    authToken,
-		refreshToken: refreshToken,
+		tokens:       tokens,
 		client:       &http.Client{},
+		clientID:     os.Getenv("CLIENT_ID"),
+		clientSecret: os.Getenv("CLIENT_SECRET"),
 	}
 }
 
@@ -72,15 +83,24 @@ func (c *AuthClient) Get(URL string, params url.Values) (*http.Response, error) 
 	if err != nil {
 		return nil, err
 	}
-	r.Header.Add("Authorization", "Bearer "+c.authToken)
+	r.Header.Add("Authorization", "Bearer "+c.tokens.AccessToken)
 	res, err := c.client.Do(r)
 	if err != nil {
 		return nil, err
 	}
 	if res.StatusCode == http.StatusUnauthorized {
-		//try to refresh token
+		return nil, fmt.Errorf("not authorized")
 	}
 	return res, nil
+}
+
+func (c *AuthClient) getRefreshToken() error {
+	t, err := getTokens(c.clientID, c.clientSecret, "", &c.tokens, true)
+	if err != nil {
+		return err
+	}
+	c.tokens = *t
+	return nil
 }
 
 func (s *AuthServer) OpenBrowserForLogin() {
@@ -100,67 +120,20 @@ func (s *AuthServer) setupOAuth2URL(scopes []string) string {
 	return authURL
 }
 
-func (s *AuthServer) GetRefreshToken(refreshToken string) {
-	creds := s.clientID + ":" + s.clientSecret
-	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(creds))
-	authEndpoint := "https://api.twitter.com/2/oauth2/token"
-
-	data := url.Values{}
-	data.Set("refresh_token", refreshToken)
-	data.Set("grant_type", "refresh_token")
-	data.Set("client_id", s.clientID)
-
-	r, err := http.NewRequest("POST", authEndpoint, strings.NewReader(data.Encode()))
+func (s *AuthServer) GetRefreshToken(refreshToken string) (*AccessTokens, error) {
+	tokens, err := getTokens(s.clientID, s.clientSecret, "", &s.Tokens, true)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
-	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	r.Header.Add("Authorization", "Basic "+encodedCredentials)
-
-	res, err := s.client.Do(r)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println(res.Status)
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println(string(body))
+	return tokens, nil
 }
 
-func (s *AuthServer) GetAccessToken(accessCode string) {
-	creds := s.clientID + ":" + s.clientSecret
-	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(creds))
-	authEndpoint := "https://api.twitter.com/2/oauth2/token"
-
-	data := url.Values{}
-	data.Set("code", accessCode)
-	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", s.clientID)
-	//data.Set("redirect_uri", serverURL)
-	data.Set("code_verifier", "stringstring")
-	ed := data.Encode() + "&redirect_uri=" + serverURL + "/auth_callback"
-	fmt.Println(ed)
-	r, err := http.NewRequest("POST", authEndpoint, strings.NewReader(ed))
+func (s *AuthServer) GetAccessToken(accessCode string) (*AccessTokens, error) {
+	t, err := getTokens(s.clientID, s.clientSecret, accessCode, nil, false)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
-	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	r.Header.Add("Authorization", "Basic "+encodedCredentials)
-
-	res, err := s.client.Do(r)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println(res.Status)
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println(string(body))
+	return t, nil
 }
 
 func setupScopesURL(scopes []string) string {
@@ -179,8 +152,14 @@ func (s *AuthServer) authCallbackStopEndpoint(w http.ResponseWriter, r *http.Req
 	log.Println(code)
 	log.Println(state)
 	//verify state and get access code if successful
-	s.GetAccessToken(code)
+	ts, err := s.GetAccessToken(code)
+	if err != nil {
+		w.Write([]byte(err.Error()))
+	}
+	s.Tokens = *ts
 	w.Write([]byte("OK"))
+	s.cancel()
+
 }
 
 func (s *AuthServer) StartServer(wg *sync.WaitGroup) {
@@ -195,4 +174,47 @@ func (s *AuthServer) StartServer(wg *sync.WaitGroup) {
 	s.server.Shutdown(s.ctx)
 	log.Println("finished server")
 
+}
+
+func getTokens(clientID string, clientSecret string, accessCode string, tokens *AccessTokens, refresh bool) (*AccessTokens, error) {
+	creds := clientID + ":" + clientSecret
+	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(creds))
+	authEndpoint := "https://api.twitter.com/2/oauth2/token"
+
+	data := url.Values{}
+	ed := ""
+	if refresh {
+		data.Set("refresh_token", tokens.RefreshToken)
+		data.Set("grant_type", "refresh_token")
+	} else {
+		data.Set("grant_type", "authorization_code")
+		data.Set("code_verifier", "stringstring")
+		data.Set("code", accessCode)
+		ed = "&redirect_uri=" + serverURL + "/auth_callback"
+	}
+	data.Set("client_id", clientID)
+
+	r, err := http.NewRequest("POST", authEndpoint, strings.NewReader(data.Encode()+ed))
+	if err != nil {
+		return nil, err
+	}
+
+	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	r.Header.Add("Authorization", "Basic "+encodedCredentials)
+	c := http.Client{}
+	res, err := c.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	log.Println(res.Status)
+	defer res.Body.Close()
+	t := &AccessTokens{}
+	// body, err := ioutil.ReadAll(res.Body)
+	json.NewDecoder(res.Body).Decode(t)
+	if err != nil {
+		return nil, err
+	}
+	log.Println(tokens)
+
+	return t, nil
 }
