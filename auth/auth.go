@@ -12,11 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/browser"
 )
 
-const serverURL = "https://9ce6-2806-104e-13-4fcd-587d-133e-3b9c-3f5e.ngrok.io"
+const serverURL = "https://c0e4-200-56-56-50.ngrok.io"
 
 type AuthServer struct {
 	server       *http.Server
@@ -38,11 +39,12 @@ type AuthClient struct {
 }
 
 type AccessTokens struct {
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	AccessToken  string `json:"access_token"`
-	Scope        string `json:"scope"`
-	RefreshToken string `json:"refresh_token"`
+	TokenType    string    `json:"token_type"`
+	ExpiresIn    int       `json:"expires_in"`
+	AccessToken  string    `json:"access_token"`
+	Scope        string    `json:"scope"`
+	RefreshToken string    `json:"refresh_token"`
+	GrantedDate  time.Time `json:"granted_date"`
 }
 
 func NewAuthServer(ctx context.Context, port int, scopes []string, cancel context.CancelFunc) *AuthServer {
