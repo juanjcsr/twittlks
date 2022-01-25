@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/juanjcsr/twittlks/auth"
+	"github.com/juanjcsr/twittlks/lks"
 	"github.com/spf13/viper"
 )
 
@@ -38,7 +39,11 @@ func main() {
 	viper.Set("app.granted_date", tokens.GrantedDate)
 	viper.WriteConfig()
 
-	GetAuthedUserLikes("6846262", ac)
+	lt, err := GetAuthedUserLikes("6846262", ac)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println(lt)
 }
 
 func runAuth() *auth.AccessTokens {
@@ -55,7 +60,7 @@ func runAuth() *auth.AccessTokens {
 	return &s.Tokens
 }
 
-func GetAuthedUserLikes(userID string, ac auth.AuthClient) {
+func GetAuthedUserLikes(userID string, ac auth.AuthClient) (*lks.TwitLikesWrapper, error) {
 	params := url.Values{}
 	params.Set("max_results", "5")
 	params.Set("user.fields", "created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,withheld")
@@ -66,15 +71,16 @@ func GetAuthedUserLikes(userID string, ac auth.AuthClient) {
 	u := fmt.Sprintf("https://api.twitter.com/2/users/%s/liked_tweets?%s", userID, params.Encode())
 	res, err := ac.Get(u, nil)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	fmt.Println(string(body))
+	// body, err := ioutil.ReadAll(res.Body)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	lt := &lks.TwitLikesWrapper{}
+	json.NewDecoder(res.Body).Decode(lt)
+	return lt, nil
 }
 
 func setupViperConfig() (*auth.AccessTokens, error) {
