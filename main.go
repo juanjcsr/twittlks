@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -23,19 +22,23 @@ func main() {
 	}
 
 	tokens, err := setupViperConfig()
+
 	if err != nil {
 		log.Println(err)
 		tokens = runAuth()
-		viper.Set("app.expires", tokens.ExpiresIn)
-		viper.Set("app.token_type", tokens.TokenType)
-		viper.Set("app.access_token", tokens.AccessToken)
-		viper.Set("app.refresh_token", tokens.RefreshToken)
-		viper.Set("app.scope", tokens.Scope)
-		viper.Set("app.granted_date", tokens.GrantedDate)
-		viper.WriteConfig()
 	}
-	authClient := auth.NewAuthClient(*tokens)
-	GetAuthedUserLikes("6846262", *authClient)
+	// authClient := auth.NewAuthClient(*tokens)
+	ac := *auth.NewAuthClient(*tokens)
+	*tokens = ac.GetTokens()
+	viper.Set("app.expires", tokens.ExpiresIn)
+	viper.Set("app.token_type", tokens.TokenType)
+	viper.Set("app.access_token", tokens.AccessToken)
+	viper.Set("app.refresh_token", tokens.RefreshToken)
+	viper.Set("app.scope", tokens.Scope)
+	viper.Set("app.granted_date", tokens.GrantedDate)
+	viper.WriteConfig()
+
+	GetAuthedUserLikes("6846262", ac)
 }
 
 func runAuth() *auth.AccessTokens {
@@ -86,22 +89,29 @@ func setupViperConfig() (*auth.AccessTokens, error) {
 		os.Exit(1)
 	}
 
-	expiresInStr := viper.GetString("app.expires")
+	expiresIn := viper.GetInt("app.expires")
 	tokenType := viper.GetString("app.token_type")
 	accessToken := viper.GetString("app.access_token")
 	refreshToken := viper.GetString("app.refresh_token")
 	scope := viper.GetString("app.scope")
+	lastDate := viper.GetTime("app.granted_date")
+	expired := false
 
-	if expiresInStr == "" || tokenType == "" || accessToken == "" || refreshToken == "" {
+	if expiresIn == 0 || tokenType == "" || accessToken == "" || refreshToken == "" {
 		return nil, fmt.Errorf("no config file")
 	}
-	expiresIn, _ := strconv.Atoi(expiresInStr)
+
+	if lastDate.Add(time.Second * time.Duration(expiresIn)).Before(time.Now()) {
+		expired = true
+	}
 	tokens := auth.AccessTokens{
 		TokenType:    tokenType,
 		ExpiresIn:    expiresIn,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		Scope:        scope,
+		GrantedDate:  lastDate,
+		Expired:      expired,
 	}
 
 	return &tokens, err

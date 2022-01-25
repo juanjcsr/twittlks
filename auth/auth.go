@@ -45,6 +45,7 @@ type AccessTokens struct {
 	Scope        string    `json:"scope"`
 	RefreshToken string    `json:"refresh_token"`
 	GrantedDate  time.Time `json:"granted_date"`
+	Expired      bool
 }
 
 func NewAuthServer(ctx context.Context, port int, scopes []string, cancel context.CancelFunc) *AuthServer {
@@ -72,12 +73,20 @@ func NewAuthServer(ctx context.Context, port int, scopes []string, cancel contex
 }
 
 func NewAuthClient(tokens AccessTokens) *AuthClient {
-	return &AuthClient{
+
+	ac := &AuthClient{
 		tokens:       tokens,
 		client:       &http.Client{},
 		clientID:     os.Getenv("CLIENT_ID"),
 		clientSecret: os.Getenv("CLIENT_SECRET"),
 	}
+	if tokens.Expired {
+		err := ac.getRefreshToken()
+		if err != nil {
+			log.Panicln(err)
+		}
+	}
+	return ac
 }
 
 func (c *AuthClient) Get(URL string, params url.Values) (*http.Response, error) {
@@ -178,6 +187,10 @@ func (s *AuthServer) StartServer(wg *sync.WaitGroup) {
 
 }
 
+func (ac *AuthClient) GetTokens() AccessTokens {
+	return ac.tokens
+}
+
 func getTokens(clientID string, clientSecret string, accessCode string, tokens *AccessTokens, refresh bool) (*AccessTokens, error) {
 	creds := clientID + ":" + clientSecret
 	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(creds))
@@ -208,15 +221,17 @@ func getTokens(clientID string, clientSecret string, accessCode string, tokens *
 	if err != nil {
 		return nil, err
 	}
-	log.Println(res.Status)
+	// log.Println(res.Status)
 	defer res.Body.Close()
 	t := &AccessTokens{}
+	t.GrantedDate = time.Now()
+	t.Expired = false
 	// body, err := ioutil.ReadAll(res.Body)
 	json.NewDecoder(res.Body).Decode(t)
 	if err != nil {
 		return nil, err
 	}
-	log.Println(tokens)
+	// log.Println(t)
 
 	return t, nil
 }
