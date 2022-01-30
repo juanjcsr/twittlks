@@ -1,25 +1,37 @@
 package lks
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/juanjcsr/twittlks/auth"
+)
 
 type TuitLike struct {
-	Source            string               `json:"source,omitempty"`
-	AuthorID          string               `json:"author_id,omitempty"`
-	Attachments       Attachments          `json:"attachments,omitempty"`
-	CreatedAt         time.Time            `json:"created_at,omitempty"`
-	PossiblySensitive bool                 `json:"possibly_sensitive,omitempty"`
-	GeoID             GeoID                `json:"geo,omitempty"`
-	Entities          Entities             `json:"entities,omitempty"`
-	Text              string               `json:"text,omitempty"`
-	ID                string               `json:"id,omitempty"`
-	ConversationID    string               `json:"conversation_id,omitempty"`
-	Lang              string               `json:"lang,omitempty"`
-	ReplySettings     string               `json:"reply_settings,omitempty"`
-	ReferencedTweets  []ReferencedTweetsID `json:"referenced_tweets,omitempty"`
-	InReplyToUserID   string               `json:"in_reply_to_user_id,omitempty"`
-	Author            Users                `json:"author"`
-	MediaData         []Media              `json:"media"`
-	Places            Place                `json:"place"`
+	Source               string               `json:"source,omitempty"`
+	AuthorID             string               `json:"author_id,omitempty"`
+	Attachments          Attachments          `json:"attachments,omitempty"`
+	CreatedAt            time.Time            `json:"created_at,omitempty"`
+	PossiblySensitive    bool                 `json:"possibly_sensitive,omitempty"`
+	GeoID                GeoID                `json:"geo,omitempty"`
+	Entities             Entities             `json:"entities,omitempty"`
+	Text                 string               `json:"text,omitempty"`
+	ID                   string               `json:"id,omitempty"`
+	ConversationID       string               `json:"conversation_id,omitempty"`
+	Lang                 string               `json:"lang,omitempty"`
+	ReplySettings        string               `json:"reply_settings,omitempty"`
+	ReferencedTweets     []ReferencedTweetsID `json:"referenced_tweets,omitempty"`
+	ReferencedTweetsList []ReferencedTweets   `json:"referenced_tweets_list"`
+	InReplyToUserID      string               `json:"in_reply_to_user_id,omitempty"`
+	Author               Users                `json:"author"`
+	MediaData            []Media              `json:"media"`
+	Places               Place                `json:"place"`
+	// Tuit                 Data               `json:"tweet"`
+	// ReferencedTweetsList []ReferencedTweets `json:"referenced_tweets_list"`
+	// Author               Users              `json:"author"`
+	// MediaData            []Media            `json:"media"`
+	// Places               Place              `json:"place"`
 }
 
 type Data struct {
@@ -174,4 +186,69 @@ type Geo struct {
 	Type        string    `json:"type"`
 	Coordinates []float64 `json:"coordinates"`
 	Bbox        []float64 `json:"bbox"`
+}
+
+func NewLKSClient(ac auth.AuthClient) *LksClient {
+	return &LksClient{
+		client: ac,
+	}
+}
+
+func (t *TwitLikesWrapper) ToTuitLikeList() []TuitLike {
+	tlList := []TuitLike{}
+	for _, tuit := range t.Data {
+		tl := TuitLike{}
+		for _, user := range t.Includes.Users {
+			if tuit.AuthorID == user.ID {
+				tl.Author = user
+			}
+		}
+
+		for _, media := range t.Includes.Media {
+			for _, tm := range tuit.Attachments.MediaKeys {
+				if tm == media.MediaKey {
+					tl.MediaData = append(tl.MediaData, media)
+				}
+			}
+		}
+
+		for _, ts := range t.Includes.Tweets {
+			for _, rf := range tuit.ReferencedTweets {
+				if rf.ID == ts.ID {
+					tl.ReferencedTweetsList = append(tl.ReferencedTweetsList, ts)
+				}
+			}
+		}
+
+		for _, p := range t.Includes.Places {
+			if p.ID == tuit.GeoID.PlaceID {
+				tl.Places = p
+			}
+		}
+		tl.Source = tuit.Source
+		tl.AuthorID = tuit.AuthorID
+		tl.Attachments = tuit.Attachments
+		tl.CreatedAt = tuit.CreatedAt
+		tl.PossiblySensitive = tuit.PossiblySensitive
+		tl.GeoID = tuit.GeoID
+		tl.Entities = tuit.Entities
+		tl.Text = tuit.Text
+		tl.ID = tuit.ID
+		tl.ConversationID = tuit.ConversationID
+		tl.Lang = tuit.Lang
+		tl.ReplySettings = tuit.ReplySettings
+		tl.ReferencedTweets = tuit.ReferencedTweets
+		tl.InReplyToUserID = tuit.InReplyToUserID
+
+		tlList = append(tlList, tl)
+	}
+	return tlList
+}
+
+func (t *TuitLike) ToJSON() string {
+	b, err := json.Marshal(t)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return string(b)
 }

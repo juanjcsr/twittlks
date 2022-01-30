@@ -1,6 +1,7 @@
 package lks
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -10,7 +11,7 @@ import (
 	"strings"
 )
 
-func OpenJSON(path string) {
+func OpenJSON(path string) TwitLikesWrapper {
 	jf, err := os.Open(path)
 	if err != nil {
 		fmt.Println(err)
@@ -19,9 +20,12 @@ func OpenJSON(path string) {
 	defer jf.Close()
 
 	b, _ := ioutil.ReadAll(jf)
-	s := string(b)
+	// s := string(b)
 
-	fmt.Println(Decode(s))
+	// fmt.Println(Decode(s))
+	tlw := &TwitLikesWrapper{}
+	json.Unmarshal(b, tlw)
+	return *tlw
 
 }
 

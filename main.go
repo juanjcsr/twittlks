@@ -2,51 +2,53 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"net/url"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/juanjcsr/twittlks/auth"
 	"github.com/juanjcsr/twittlks/lks"
 	"github.com/spf13/viper"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Fatal("Error loading .env file")
+	// }
+
+	// tokens, err := setupViperConfig()
+
+	// if err != nil {
+	// 	log.Println(err)
+	// 	tokens = runAuth()
+	// }
+	// // authClient := auth.NewAuthClient(*tokens)
+	// ac := *auth.NewAuthClient(*tokens)
+	// *tokens = ac.GetTokens()
+	// viper.Set("app.expires", tokens.ExpiresIn)
+	// viper.Set("app.token_type", tokens.TokenType)
+	// viper.Set("app.access_token", tokens.AccessToken)
+	// viper.Set("app.refresh_token", tokens.RefreshToken)
+	// viper.Set("app.scope", tokens.Scope)
+	// viper.Set("app.granted_date", tokens.GrantedDate)
+	// viper.WriteConfig()
+
+	// lksClient := lks.NewLKSClient(ac)
+
+	// lt, err := lksClient.GetAuthedUserLikes("6846262")
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+
+	lt := lks.OpenJSON("tuits.json")
+	tlList := lt.ToTuitLikeList()
+	fmt.Println(len(tlList))
+	fmt.Println(lt.Meta.ResultCount)
+	for _, tuit := range tlList {
+		fmt.Println(tuit.ToJSON())
 	}
-
-	tokens, err := setupViperConfig()
-
-	if err != nil {
-		log.Println(err)
-		tokens = runAuth()
-	}
-	// authClient := auth.NewAuthClient(*tokens)
-	ac := *auth.NewAuthClient(*tokens)
-	*tokens = ac.GetTokens()
-	viper.Set("app.expires", tokens.ExpiresIn)
-	viper.Set("app.token_type", tokens.TokenType)
-	viper.Set("app.access_token", tokens.AccessToken)
-	viper.Set("app.refresh_token", tokens.RefreshToken)
-	viper.Set("app.scope", tokens.Scope)
-	viper.Set("app.granted_date", tokens.GrantedDate)
-	viper.WriteConfig()
-
-	lt, err := GetAuthedUserLikes("6846262", ac)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// lks.OpenJSON("tuits.json")
-	fmt.Println(lt)
 }
 
 func runAuth() *auth.AccessTokens {
@@ -61,33 +63,6 @@ func runAuth() *auth.AccessTokens {
 	fmt.Println(s.Tokens)
 	s.Tokens.GrantedDate = time.Now()
 	return &s.Tokens
-}
-
-func GetAuthedUserLikes(userID string, ac auth.AuthClient) (*lks.TwitLikesWrapper, error) {
-	params := url.Values{}
-	params.Set("max_results", "25")
-	params.Set("user.fields", "created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,withheld")
-	params.Set("place.fields", "country,country_code,full_name,geo,id,name,place_type")
-	params.Set("media.fields", "duration_ms,height,media_key,preview_image_url,type,url,width,alt_text")
-	params.Set("tweet.fields", "attachments,author_id,conversation_id,created_at,entities,geo,id,in_reply_to_user_id,lang,possibly_sensitive,referenced_tweets,reply_settings,source,text,withheld")
-	params.Set("expansions", "attachments.poll_ids,attachments.media_keys,author_id,entities.mentions.username,geo.place_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id")
-	u := fmt.Sprintf("https://api.twitter.com/2/users/%s/liked_tweets?%s", userID, params.Encode())
-	res, err := ac.Get(u, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	// fmt.Println(string(body))
-	s := string(body)
-	s = lks.Decode(s)
-	lt := &lks.TwitLikesWrapper{}
-	// json.NewDecoder([]byte(s)).Decode(lt)
-	json.Unmarshal([]byte(s), lt)
-	return lt, nil
 }
 
 func setupViperConfig() (*auth.AccessTokens, error) {
