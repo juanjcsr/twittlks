@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
@@ -43,6 +44,8 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	// lks.OpenJSON("tuits.json")
 	fmt.Println(lt)
 }
 
@@ -62,7 +65,7 @@ func runAuth() *auth.AccessTokens {
 
 func GetAuthedUserLikes(userID string, ac auth.AuthClient) (*lks.TwitLikesWrapper, error) {
 	params := url.Values{}
-	params.Set("max_results", "5")
+	params.Set("max_results", "25")
 	params.Set("user.fields", "created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,withheld")
 	params.Set("place.fields", "country,country_code,full_name,geo,id,name,place_type")
 	params.Set("media.fields", "duration_ms,height,media_key,preview_image_url,type,url,width,alt_text")
@@ -74,12 +77,16 @@ func GetAuthedUserLikes(userID string, ac auth.AuthClient) (*lks.TwitLikesWrappe
 		return nil, err
 	}
 	defer res.Body.Close()
-	// body, err := ioutil.ReadAll(res.Body)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	// fmt.Println(string(body))
+	s := string(body)
+	s = lks.Decode(s)
 	lt := &lks.TwitLikesWrapper{}
-	json.NewDecoder(res.Body).Decode(lt)
+	// json.NewDecoder([]byte(s)).Decode(lt)
+	json.Unmarshal([]byte(s), lt)
 	return lt, nil
 }
 

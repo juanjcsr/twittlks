@@ -2,6 +2,43 @@ package lks
 
 import "time"
 
+type TuitLike struct {
+	Source            string               `json:"source,omitempty"`
+	AuthorID          string               `json:"author_id,omitempty"`
+	Attachments       Attachments          `json:"attachments,omitempty"`
+	CreatedAt         time.Time            `json:"created_at,omitempty"`
+	PossiblySensitive bool                 `json:"possibly_sensitive,omitempty"`
+	GeoID             GeoID                `json:"geo,omitempty"`
+	Entities          Entities             `json:"entities,omitempty"`
+	Text              string               `json:"text,omitempty"`
+	ID                string               `json:"id,omitempty"`
+	ConversationID    string               `json:"conversation_id,omitempty"`
+	Lang              string               `json:"lang,omitempty"`
+	ReplySettings     string               `json:"reply_settings,omitempty"`
+	ReferencedTweets  []ReferencedTweetsID `json:"referenced_tweets,omitempty"`
+	InReplyToUserID   string               `json:"in_reply_to_user_id,omitempty"`
+	Author            Users                `json:"author"`
+	MediaData         []Media              `json:"media"`
+	Places            Place                `json:"place"`
+}
+
+type Data struct {
+	Source            string               `json:"source,omitempty"`
+	AuthorID          string               `json:"author_id,omitempty"`
+	Attachments       Attachments          `json:"attachments,omitempty"`
+	CreatedAt         time.Time            `json:"created_at,omitempty"`
+	PossiblySensitive bool                 `json:"possibly_sensitive,omitempty"`
+	GeoID             GeoID                `json:"geo,omitempty"`
+	Entities          Entities             `json:"entities,omitempty"`
+	Text              string               `json:"text,omitempty"`
+	ID                string               `json:"id,omitempty"`
+	ConversationID    string               `json:"conversation_id,omitempty"`
+	Lang              string               `json:"lang,omitempty"`
+	ReplySettings     string               `json:"reply_settings,omitempty"`
+	ReferencedTweets  []ReferencedTweetsID `json:"referenced_tweets,omitempty"`
+	InReplyToUserID   string               `json:"in_reply_to_user_id,omitempty"`
+}
+
 type TwitLikesWrapper struct {
 	Data     []Data   `json:"data,omitempty"`
 	Includes Includes `json:"includes,omitempty"`
@@ -48,21 +85,6 @@ type Entities struct {
 	URL         URL           `json:"url,omitempty"`
 }
 
-type Data struct {
-	Source            string               `json:"source,omitempty"`
-	AuthorID          string               `json:"author_id,omitempty"`
-	Attachments       Attachments          `json:"attachments,omitempty"`
-	CreatedAt         time.Time            `json:"created_at,omitempty"`
-	PossiblySensitive bool                 `json:"possibly_sensitive,omitempty"`
-	Entities          Entities             `json:"entities,omitempty"`
-	Text              string               `json:"text,omitempty"`
-	ID                string               `json:"id,omitempty"`
-	ConversationID    string               `json:"conversation_id,omitempty"`
-	Lang              string               `json:"lang,omitempty"`
-	ReplySettings     string               `json:"reply_settings,omitempty"`
-	ReferencedTweets  []ReferencedTweetsID `json:"referenced_tweets,omitempty"`
-	InReplyToUserID   string               `json:"in_reply_to_user_id,omitempty"`
-}
 type Media struct {
 	DurationMs      int    `json:"duration_ms,omitempty"`
 	Height          int    `json:"height,omitempty"`
@@ -127,8 +149,29 @@ type Includes struct {
 	Media  []Media            `json:"media"`
 	Users  []Users            `json:"users"`
 	Tweets []ReferencedTweets `json:"tweets"`
+	Places []Place            `json:"places,omitempty"`
 }
 type Meta struct {
 	ResultCount int    `json:"result_count"`
 	NextToken   string `json:"next_token"`
+}
+
+type GeoID struct {
+	PlaceID string `json:"place_id"`
+}
+
+type Place struct {
+	CountryCode string `json:"country_code"`
+	ID          string `json:"id"`
+	Geo         Geo    `json:"geo"`
+	Country     string `json:"country"`
+	FullName    string `json:"full_name"`
+	Name        string `json:"name"`
+	PlaceType   string `json:"place_type"`
+}
+
+type Geo struct {
+	Type        string    `json:"type"`
+	Coordinates []float64 `json:"coordinates"`
+	Bbox        []float64 `json:"bbox"`
 }

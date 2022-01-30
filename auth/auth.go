@@ -17,7 +17,7 @@ import (
 	"github.com/pkg/browser"
 )
 
-const serverURL = "https://c0e4-200-56-56-50.ngrok.io"
+const serverURL = "https://643b-200-56-56-50.ngrok.io"
 
 type AuthServer struct {
 	server       *http.Server
