@@ -42,6 +42,9 @@ func Decode(str string) string {
 				i++
 			} else {
 				e := html.UnescapeString("&#x" + strings.ToLower(us[i][2:]) + ";")
+				if e == "\x16" {
+					continue
+				}
 				str = strings.Replace(str, us[i], e, 1)
 			}
 		}

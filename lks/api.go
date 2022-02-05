@@ -164,8 +164,9 @@ type Includes struct {
 	Places []Place            `json:"places,omitempty"`
 }
 type Meta struct {
-	ResultCount int    `json:"result_count"`
-	NextToken   string `json:"next_token"`
+	ResultCount   int    `json:"result_count"`
+	NextToken     string `json:"next_token"`
+	PreviousToken string `json:"previous_token"`
 }
 
 type GeoID struct {
