@@ -14,6 +14,7 @@ const maxResults = "100"
 
 type LksClient struct {
 	client auth.AuthClient
+	config LksConfig
 }
 
 func (l *LksClient) GetAuthedUserLikesByPage(userID string, page string) (*TwitLikesWrapper, error) {
