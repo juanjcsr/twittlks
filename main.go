@@ -44,11 +44,16 @@ func main() {
 	// Use the authed http client to create a new LKS client
 	lksClient := lks.NewLKSClient(ac)
 
-	err = lks.FetchLksHistoryFromConfig(lksClient, v)
+	// err = lks.FetchLksHistoryFromConfig(lksClient, v)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	// log.Printf("finished extracting tuits")
+
+	err = lks.FetchLksCurrentWeekFromConfig(lksClient, v)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
-	log.Printf("finished extracting tuits")
 }
 
 func runAuth() *auth.AccessTokens {

@@ -6,11 +6,13 @@ import (
 	"io/ioutil"
 	"log"
 	"net/url"
+	"time"
 
 	"github.com/juanjcsr/twittlks/auth"
+	"github.com/spf13/viper"
 )
 
-const maxResults = "100"
+const maxResults = "5"
 
 type LksClient struct {
 	client auth.AuthClient
@@ -76,4 +78,52 @@ func (l *LksClient) GetAuthedUserLikes(userID string) (*TwitLikesWrapper, error)
 	// json.NewDecoder([]byte(s)).Decode(lt)
 	json.Unmarshal([]byte(s), lt)
 	return lt, nil
+}
+
+type LksConfig struct {
+	HistoryFile   string
+	UserID        string
+	LastPage      string
+	Count         int
+	LastLikedTuit string
+	viperConfig   *viper.Viper
+}
+
+const (
+	configFileName    = "app.history_file"
+	configTotalCount  = "tuits.total_count"
+	configLastPage    = "tuits.last_page"
+	configUserID      = "tuits.user_id"
+	configLastLkdTuit = "tuits.last_liked_tuit"
+)
+
+func NewLksConfig(config *viper.Viper) *LksConfig {
+	historyFn := config.GetString(configFileName)
+	if historyFn == "" {
+		now := time.Now()
+		historyFn = fmt.Sprintf("history_%d_%d_%d.jsonl", now.Year(), now.Month(), now.Day())
+	}
+	userID := config.GetString(configUserID)
+	lastPage := config.GetString(configLastPage)
+	count := config.GetInt(configTotalCount)
+	lastLikedTuit := config.GetString(configLastLkdTuit)
+	c := &LksConfig{
+		HistoryFile:   historyFn,
+		UserID:        userID,
+		LastPage:      lastPage,
+		Count:         count,
+		LastLikedTuit: lastLikedTuit,
+		viperConfig:   config,
+	}
+
+	return c
+}
+
+func (c *LksConfig) SaveLastLksState(lastPage string, nextCount int) error {
+	tc := c.Count + nextCount
+	c.viperConfig.Set(configLastPage, lastPage)
+	c.viperConfig.Set(configTotalCount, tc)
+	c.LastPage = lastPage
+	c.Count = tc
+	return c.viperConfig.WriteConfig()
 }
