@@ -49,6 +49,19 @@ func appendTuitsToFile(lt *TwitLikesWrapper, filename string) {
 	defer f.Close()
 }
 
+func appendTuitsLikeSliceToFile(tla []TuitLike, filename string) error {
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	for _, tuit := range tla {
+		f.WriteString(tuit.ToJSON() + "\n")
+	}
+	defer f.Close()
+	return nil
+}
+
 func getPagedTuits(user string, page string, lksClient *LksClient) (*TwitLikesWrapper, error) {
 	lt, err := lksClient.GetAuthedUserLikesByPage(user, page)
 	if err != nil {

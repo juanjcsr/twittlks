@@ -18,7 +18,11 @@ func FetchLksCurrentWeekFromConfig(lksclient *LksClient, v *viper.Viper) error {
 	c.LastPage = ""
 	res, err := FetchFromPage(lksclient, c, &newTuits, false)
 	if err != nil {
-		log.Fatalln(err)
+		return err
+	}
+
+	if err = appendTuitsLikeSliceToFile(newTuits, "part_"+c.HistoryFile); err != nil {
+		return err
 	}
 	log.Println(len(*res))
 	return nil
