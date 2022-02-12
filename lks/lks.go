@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-const maxResults = "25"
+const maxResults = "99"
 
 type LksClient struct {
 	client auth.AuthClient

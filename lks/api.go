@@ -17,7 +17,7 @@ type TuitLike struct {
 	GeoID                GeoID                `json:"geo,omitempty"`
 	Entities             Entities             `json:"entities,omitempty"`
 	Text                 string               `json:"text,omitempty"`
-	ID                   string               `json:"id,omitempty"`
+	ID                   string               `json:"id,omitempty" bun:",pk"`
 	ConversationID       string               `json:"conversation_id,omitempty"`
 	Lang                 string               `json:"lang,omitempty"`
 	ReplySettings        string               `json:"reply_settings,omitempty"`
@@ -27,11 +27,8 @@ type TuitLike struct {
 	Author               Users                `json:"author"`
 	MediaData            []Media              `json:"media"`
 	Places               Place                `json:"place"`
-	// Tuit                 Data               `json:"tweet"`
-	// ReferencedTweetsList []ReferencedTweets `json:"referenced_tweets_list"`
-	// Author               Users              `json:"author"`
-	// MediaData            []Media            `json:"media"`
-	// Places               Place              `json:"place"`
+	PlaceID              string
+	Raw                  json.RawMessage
 }
 
 type Data struct {
@@ -83,10 +80,11 @@ type ReferencedTweetsID struct {
 	ID   string `json:"id,omitempty"`
 }
 type Mentions struct {
-	Start    int    `json:"start,omitempty"`
-	End      int    `json:"end,omitempty"`
-	Username string `json:"username,omitempty"`
-	ID       string `json:"id,omitempty"`
+	Start        int    `json:"start,omitempty"`
+	End          int    `json:"end,omitempty"`
+	Username     string `json:"username,omitempty"`
+	ID           string `json:"id,omitempty"`
+	MentionsType string
 }
 
 type Entities struct {
@@ -105,6 +103,8 @@ type Media struct {
 	MediaKey        string `json:"media_key,omitempty"`
 	Type            string `json:"type,omitempty"`
 	URL             string `json:"url,omitempty"`
+	TuitID          string
+	TuitLike        *TuitLike `bun:"rel:belongs-to,join:tuit_id=id"`
 }
 type URL struct {
 	Urls []Urls `json:"urls,omitempty"`
@@ -135,12 +135,15 @@ type Users struct {
 	ProfileImageURL string        `json:"profile_image_url,omitempty"`
 	Protected       bool          `json:"protected,omitempty"`
 	Location        string        `json:"location,omitempty"`
-	ID              string        `json:"id,omitempty"`
+	ID              string        `json:"id,omitempty" bun:",pk"`
 	CreatedAt       time.Time     `json:"created_at,omitempty"`
 	Verified        bool          `json:"verified,omitempty"`
 	Entities        Entities      `json:"entities,omitempty"`
 	PublicMetrics   PublicMetrics `json:"public_metrics,omitempty"`
 	Name            string        `json:"name,omitempty"`
+	TuitLike        []*TuitLike   `bun:"rel:has-many,join:id=author"`
+
+	Mentions []Mentions `bun:"rel:has-many,join:id="`
 }
 
 type ReferencedTweets struct {
@@ -174,13 +177,14 @@ type GeoID struct {
 }
 
 type Place struct {
-	CountryCode string `json:"country_code"`
-	ID          string `json:"id"`
-	Geo         Geo    `json:"geo"`
-	Country     string `json:"country"`
-	FullName    string `json:"full_name"`
-	Name        string `json:"name"`
-	PlaceType   string `json:"place_type"`
+	CountryCode string      `json:"country_code"`
+	ID          string      `json:"id" bun:",pk"`
+	Geo         Geo         `json:"geo"`
+	Country     string      `json:"country"`
+	FullName    string      `json:"full_name"`
+	Name        string      `json:"name"`
+	PlaceType   string      `json:"place_type"`
+	TuitLike    []*TuitLike `bun:"has-many,join:id=place_id"`
 }
 
 type Geo struct {
