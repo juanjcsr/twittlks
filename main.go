@@ -10,7 +10,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/juanjcsr/twittlks/auth"
-	"github.com/juanjcsr/twittlks/lks"
+	"github.com/juanjcsr/twittlks/lks/db"
 	"github.com/spf13/viper"
 )
 
@@ -40,20 +40,26 @@ func main() {
 	viper.Set("app.scope", tokens.Scope)
 	viper.Set("app.granted_date", tokens.GrantedDate)
 	viper.WriteConfig()
-	v := viper.GetViper()
-	// Use the authed http client to create a new LKS client
-	lksClient := lks.NewLKSClient(ac)
+	// v := viper.GetViper()
+	// // Use the authed http client to create a new LKS client
+	// lksClient := lks.NewLKSClient(ac)
 
-	err = lks.FetchLksHistoryFromConfig(lksClient, v)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Printf("finished extracting tuits")
+	// err = lks.FetchLksHistoryFromConfig(lksClient, v)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	// log.Printf("finished extracting tuits")
 
 	// err = lks.FetchLksCurrentWeekFromConfig(lksClient, v)
 	// if err != nil {
 	// 	log.Println(err)
 	// }
+
+	tl, err := db.ReadLineFromFile("jsonlines")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(len(*tl))
 }
 
 func runAuth() *auth.AccessTokens {
