@@ -28,7 +28,7 @@ type TuitLike struct {
 	MediaData            []Media              `json:"media"`
 	Places               Place                `json:"place"`
 	PlaceID              string
-	Raw                  json.RawMessage `bun:"type:jsonb"`
+	Raw                  string `json:"data,omitempty" bun:"type:jsonb"`
 }
 
 type Data struct {
@@ -141,7 +141,7 @@ type Users struct {
 	Entities        Entities      `json:"entities,omitempty"`
 	PublicMetrics   PublicMetrics `json:"public_metrics,omitempty"`
 	Name            string        `json:"name,omitempty"`
-	TuitLike        []*TuitLike   `bun:"rel:has-many,join:id=author"`
+	TuitLike        []*TuitLike   `bun:"rel:has-many,join:id=author_id"`
 }
 
 type ReferencedTweets struct {
@@ -262,7 +262,8 @@ func LineByteToTuitLike(b []byte) (*TuitLike, error) {
 	if err != nil {
 		return nil, err
 	}
-	tl.Raw = b
+	raw := string(b)
+	tl.Raw = raw
 	for i := range tl.MediaData {
 		tl.MediaData[i].TuitID = tl.ID
 	}

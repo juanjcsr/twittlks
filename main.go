@@ -54,11 +54,38 @@ func main() {
 	// if err != nil {
 	// 	log.Println(err)
 	// }
-
-	tl, err := db.ReadLineFromFile("jsonlines")
+	ctx := context.Background()
+	tl, err := db.ReadLineFromFile("fulltuits.jsonl")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
+	d := db.OpenSQLConn()
+	d.OpenBUN()
+	d.CreateTables(ctx)
+	for _, t := range *tl {
+		_, err := d.BunDB.NewInsert().
+			Model(&t).Exec(ctx)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		_, err = d.BunDB.NewInsert().
+			Model(&t.Author).Ignore().Exec(ctx)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		for _, m := range t.MediaData {
+			_, err = d.BunDB.NewInsert().
+				Model(&m).Exec(ctx)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}
+	}
+	// s, err := d.BunDB.NewInsert().Model(tl).Exec(ctx)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	// fmt.Println(s.RowsAffected())
 	fmt.Println(len(*tl))
 }
 
