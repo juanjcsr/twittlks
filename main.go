@@ -10,6 +10,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/juanjcsr/twittlks/auth"
+	"github.com/juanjcsr/twittlks/lks"
 	"github.com/juanjcsr/twittlks/lks/db"
 	"github.com/spf13/viper"
 )
@@ -40,53 +41,52 @@ func main() {
 	viper.Set("app.scope", tokens.Scope)
 	viper.Set("app.granted_date", tokens.GrantedDate)
 	viper.WriteConfig()
-	// v := viper.GetViper()
-	// // Use the authed http client to create a new LKS client
-	// lksClient := lks.NewLKSClient(ac)
-
-	// err = lks.FetchLksHistoryFromConfig(lksClient, v)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// log.Printf("finished extracting tuits")
-
-	// err = lks.FetchLksCurrentWeekFromConfig(lksClient, v)
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	ctx := context.Background()
-	tl, err := db.ReadLineFromFile("fulltuits.jsonl")
+	v := viper.GetViper()
+	// Use the authed http client to create a new LKS client
+	lksClient := lks.NewLKSClient(ac, v)
+	last, err := GetLastWeekLikedTwits(lksClient, v)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+	}
+
+	ctx := context.Background()
+	lastS := viper.Get("tuits.last_saved_tuit")
+	if last != lastS {
+		_, err = SaveLikedToDB(ctx, lksClient.GetConfigCurrentPartFilename(), false, v)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+}
+
+func SaveLikedToDB(ctx context.Context, filename string, newDB bool, v *viper.Viper) (string, error) {
+	tl, err := db.ReadLineFromFile(filename)
+	if err != nil {
+		return "", err
 	}
 	d := db.OpenSQLConn()
 	d.OpenBUN()
-	d.CreateTables(ctx)
-	for _, t := range *tl {
-		_, err := d.BunDB.NewInsert().
-			Model(&t).Exec(ctx)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		_, err = d.BunDB.NewInsert().
-			Model(&t.Author).Ignore().Exec(ctx)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		for _, m := range t.MediaData {
-			_, err = d.BunDB.NewInsert().
-				Model(&m).Exec(ctx)
-			if err != nil {
-				log.Fatalln(err)
-			}
-		}
+	if err = d.CreateTables(ctx, newDB); err != nil {
+		return "", err
 	}
-	// s, err := d.BunDB.NewInsert().Model(tl).Exec(ctx)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// fmt.Println(s.RowsAffected())
-	fmt.Println(len(*tl))
+	lastTL, err := d.SaveTuitsToDB(tl, ctx)
+	viper.Set("tuits.last_saved_tuit", lastTL)
+	viper.WriteConfig()
+	if err != nil {
+		log.Fatalf("last inserted tuit: %s, err: %s", lastTL, err)
+		return lastTL, err
+	}
+	return lastTL, nil
+}
+
+func GetLastWeekLikedTwits(lksClient *lks.LksClient, v *viper.Viper) (string, error) {
+	last, err := lksClient.FetchLksCurrentWeekFromConfig()
+	if err != nil {
+		return last, err
+	}
+	v.Set("tuits.last_liked_tuit", last)
+	v.WriteConfig()
+	return last, nil
 }
 
 func runAuth() *auth.AccessTokens {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/juanjcsr/twittlks/auth"
+	"github.com/spf13/viper"
 )
 
 type TuitLike struct {
@@ -28,7 +29,8 @@ type TuitLike struct {
 	MediaData            []Media              `json:"media"`
 	Places               Place                `json:"place"`
 	PlaceID              string
-	Raw                  string `json:"data,omitempty" bun:"type:jsonb"`
+	Raw                  string    `json:"data,omitempty" bun:"type:jsonb"`
+	InsertedAt           time.Time `bun:",nullzero,notnull,default:current_timestamp"`
 }
 
 type Data struct {
@@ -191,10 +193,16 @@ type Geo struct {
 	Bbox        []float64 `json:"bbox"`
 }
 
-func NewLKSClient(ac auth.AuthClient) *LksClient {
+func NewLKSClient(ac auth.AuthClient, v *viper.Viper) *LksClient {
+	c := NewLksConfig(v)
 	return &LksClient{
 		client: ac,
+		config: c,
 	}
+}
+
+func (l *LksClient) GetConfigCurrentPartFilename() string {
+	return "part_" + l.config.HistoryFile
 }
 
 func (t *TwitLikesWrapper) ToTuitLikeList() []TuitLike {

@@ -4,28 +4,28 @@ import (
 	"fmt"
 	"log"
 	"time"
-
-	"github.com/spf13/viper"
 )
 
-func FetchLksCurrentWeekFromConfig(lksclient *LksClient, v *viper.Viper) error {
-	c := NewLksConfig(v)
-	if c.LastLikedTuit == "" {
-		return fmt.Errorf("no prev. tuit history")
+func (l *LksClient) FetchLksCurrentWeekFromConfig() (string, error) {
+	lastLiked := l.config.LastLikedTuit
+	if lastLiked == "" {
+		return "", fmt.Errorf("no prev. tuit history")
 	}
-	log.Println(c.LastLikedTuit)
+	log.Println(lastLiked)
 	newTuits := []TuitLike{}
-	c.LastPage = ""
-	res, err := FetchFromPage(lksclient, c, &newTuits, false)
+	l.config.LastPage = ""
+	res, err := FetchFromPage(l, l.config, &newTuits, false)
 	if err != nil {
-		return err
+		return lastLiked, err
 	}
 
-	if err = appendTuitsLikeSliceToFile(newTuits, "part_"+c.HistoryFile); err != nil {
-		return err
+	if err = appendTuitsLikeSliceToFile(newTuits, l.GetConfigCurrentPartFilename()); err != nil {
+		return lastLiked, err
 	}
-	log.Println(len(*res))
-	return nil
+	if len(*res) > 0 {
+		lastLiked = (*res)[0].ID
+	}
+	return lastLiked, nil
 }
 
 func FetchFromPage(lksclient *LksClient, c *LksConfig, tl *[]TuitLike, found bool) (*[]TuitLike, error) {

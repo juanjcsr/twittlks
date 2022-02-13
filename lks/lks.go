@@ -16,7 +16,7 @@ const maxResults = "99"
 
 type LksClient struct {
 	client auth.AuthClient
-	config LksConfig
+	config *LksConfig
 }
 
 func (l *LksClient) GetAuthedUserLikesByPage(userID string, page string) (*TwitLikesWrapper, error) {
@@ -107,13 +107,15 @@ func NewLksConfig(config *viper.Viper) *LksConfig {
 	lastPage := config.GetString(configLastPage)
 	count := config.GetInt(configTotalCount)
 	lastLikedTuit := config.GetString(configLastLkdTuit)
+
 	c := &LksConfig{
 		HistoryFile:   historyFn,
 		UserID:        userID,
 		LastPage:      lastPage,
 		Count:         count,
 		LastLikedTuit: lastLikedTuit,
-		viperConfig:   config,
+
+		viperConfig: config,
 	}
 
 	return c

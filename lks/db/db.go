@@ -37,16 +37,20 @@ func (db *DBClient) OpenBUN() {
 	db.BunDB = *database
 }
 
-func (db *DBClient) CreateTables(ctx context.Context) {
-
-	err := db.BunDB.ResetModel(ctx, (*lks.Users)(nil),
-		(*lks.TuitLike)(nil), (*lks.Media)(nil))
-	_, err = db.BunDB.NewCreateTable().
+func (db *DBClient) CreateTables(ctx context.Context, refresh bool) error {
+	if refresh {
+		err := db.BunDB.ResetModel(ctx, (*lks.Users)(nil),
+			(*lks.TuitLike)(nil), (*lks.Media)(nil))
+		if err != nil {
+			return err
+		}
+	}
+	_, err := db.BunDB.NewCreateTable().
 		Model((*lks.Users)(nil)).
 		IfNotExists().
 		Exec(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	_, err = db.BunDB.NewCreateTable().
@@ -54,7 +58,7 @@ func (db *DBClient) CreateTables(ctx context.Context) {
 		IfNotExists().
 		Exec(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	_, err = db.BunDB.NewCreateTable().
@@ -62,8 +66,37 @@ func (db *DBClient) CreateTables(ctx context.Context) {
 		IfNotExists().
 		Exec(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
+}
+
+func (d *DBClient) SaveTuitsToDB(tl *[]lks.TuitLike, ctx context.Context) (string, error) {
+	lenTL := len(*tl)
+	lastTL := ""
+	for i := range *tl {
+		t := (*tl)[lenTL-1-i]
+		_, err := d.BunDB.NewInsert().
+			Model(&t).Returning("id").Exec(ctx)
+		if err != nil {
+			return lastTL, err
+		}
+		lastTL = t.ID
+
+		_, err = d.BunDB.NewInsert().
+			Model(&t.Author).Ignore().Exec(ctx)
+		if err != nil {
+			return lastTL, err
+		}
+		for _, m := range t.MediaData {
+			_, err = d.BunDB.NewInsert().
+				Model(&m).Exec(ctx)
+			if err != nil {
+				return lastTL, err
+			}
+		}
+	}
+	return lastTL, nil
 }
 
 func ReadLineFromFile(filename string) (*[]lks.TuitLike, error) {
