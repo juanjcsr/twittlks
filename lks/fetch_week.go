@@ -1,34 +1,29 @@
 package lks
 
 import (
-	"fmt"
 	"log"
 	"time"
 )
 
-func (l *LksClient) FetchLksCurrentWeekFromConfig() (string, error) {
-	lastLiked := l.config.LastLikedTuit
-	if lastLiked == "" {
-		return "", fmt.Errorf("no prev. tuit history")
-	}
-	log.Println(lastLiked)
+func (l *LksClient) FetchLksCurrentWeekFromConfig(lastliked string) (string, error) {
+	// lastLiked := ""
 	newTuits := []TuitLike{}
 	l.config.LastPage = ""
-	res, err := FetchFromPage(l, l.config, &newTuits, false)
+	res, err := FetchFromPage(l, l.config, &newTuits, false, lastliked)
 	if err != nil {
-		return lastLiked, err
+		return "", err
 	}
 
 	if err = appendTuitsLikeSliceToFile(newTuits, l.GetConfigCurrentPartFilename()); err != nil {
-		return lastLiked, err
+		return "", err
 	}
 	if len(*res) > 0 {
-		lastLiked = (*res)[0].ID
+		lastliked = (*res)[0].ID
 	}
-	return lastLiked, nil
+	return lastliked, nil
 }
 
-func FetchFromPage(lksclient *LksClient, c *LksConfig, tl *[]TuitLike, found bool) (*[]TuitLike, error) {
+func FetchFromPage(lksclient *LksClient, c *LksConfig, tl *[]TuitLike, found bool, lastliked string) (*[]TuitLike, error) {
 	if found {
 		return tl, nil
 	}
@@ -38,7 +33,7 @@ func FetchFromPage(lksclient *LksClient, c *LksConfig, tl *[]TuitLike, found boo
 	}
 	serverTL := lt.ToTuitLikeList()
 	for _, t := range serverTL {
-		if t.ID == c.LastLikedTuit {
+		if t.ID == lastliked {
 			log.Println("got to previous tuit")
 			found = true
 			break
@@ -48,6 +43,6 @@ func FetchFromPage(lksclient *LksClient, c *LksConfig, tl *[]TuitLike, found boo
 	}
 	c.LastPage = lt.Meta.NextToken
 	time.Sleep(5 * time.Second)
-	tl, err = FetchFromPage(lksclient, c, tl, found)
+	tl, err = FetchFromPage(lksclient, c, tl, found, lastliked)
 	return tl, err
 }

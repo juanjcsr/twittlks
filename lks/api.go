@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/juanjcsr/twittlks/auth"
-	"github.com/spf13/viper"
 )
 
 type TuitLike struct {
@@ -191,18 +188,6 @@ type Geo struct {
 	Type        string    `json:"type"`
 	Coordinates []float64 `json:"coordinates"`
 	Bbox        []float64 `json:"bbox"`
-}
-
-func NewLKSClient(ac auth.AuthClient, v *viper.Viper) *LksClient {
-	c := NewLksConfig(v)
-	return &LksClient{
-		client: ac,
-		config: c,
-	}
-}
-
-func (l *LksClient) GetConfigCurrentPartFilename() string {
-	return "part_" + l.config.HistoryFile
 }
 
 func (t *TwitLikesWrapper) ToTuitLikeList() []TuitLike {

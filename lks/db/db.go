@@ -71,6 +71,22 @@ func (db *DBClient) CreateTables(ctx context.Context, refresh bool) error {
 	return nil
 }
 
+func (d *DBClient) GetLastInsertedTuit(ctx context.Context) (string, error) {
+	r, err := d.BunDB.QueryContext(ctx, "select id from tuit_likes order by inserted_at desc limit 1")
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	var result string
+	for r.Next() {
+		err = r.Scan(&result)
+		if err != nil {
+			return "", err
+		}
+	}
+	return result, nil
+}
+
 func (d *DBClient) SaveTuitsToDB(tl *[]lks.TuitLike, ctx context.Context) (string, error) {
 	lenTL := len(*tl)
 	lastTL := ""

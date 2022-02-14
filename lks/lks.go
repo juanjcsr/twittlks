@@ -1,6 +1,7 @@
 package lks
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,14 +10,48 @@ import (
 	"time"
 
 	"github.com/juanjcsr/twittlks/auth"
+	"github.com/juanjcsr/twittlks/lks/s3batch"
 	"github.com/spf13/viper"
 )
 
 const maxResults = "99"
 
 type LksClient struct {
-	client auth.AuthClient
-	config *LksConfig
+	client   auth.AuthClient
+	config   *LksConfig
+	s3api    *s3batch.S3Client
+	s3access bool
+}
+
+func NewLKSClient(ac auth.AuthClient, v *viper.Viper) *LksClient {
+	c := NewLksConfig(v)
+	s3api, err := s3batch.NewAWSClient("twittlks")
+	s3access := true
+	if err != nil {
+		s3access = false
+	}
+	return &LksClient{
+		client:   ac,
+		config:   c,
+		s3api:    s3api,
+		s3access: s3access,
+	}
+}
+
+func (l *LksClient) UploadPartFileToS3(bucket string, path string) error {
+	if !l.s3access {
+		log.Println("no s3 access")
+		return nil
+	}
+	err := l.s3api.UploadFile(context.TODO(), bucket, path, l.GetConfigCurrentPartFilename())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (l *LksClient) GetConfigCurrentPartFilename() string {
+	return "part_" + l.config.HistoryFile
 }
 
 func (l *LksClient) GetAuthedUserLikesByPage(userID string, page string) (*TwitLikesWrapper, error) {

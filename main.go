@@ -12,6 +12,7 @@ import (
 	"github.com/juanjcsr/twittlks/auth"
 	"github.com/juanjcsr/twittlks/lks"
 	"github.com/juanjcsr/twittlks/lks/db"
+	"github.com/juanjcsr/twittlks/lks/s3batch"
 	"github.com/spf13/viper"
 )
 
@@ -41,31 +42,63 @@ func main() {
 	viper.Set("app.scope", tokens.Scope)
 	viper.Set("app.granted_date", tokens.GrantedDate)
 	viper.WriteConfig()
+
+	ctx := context.Background()
 	v := viper.GetViper()
-	// Use the authed http client to create a new LKS client
+	d := OpenDB()
+	dblast, err := d.GetLastInsertedTuit(ctx)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	//
+	// InitialLoad(ctx, v, d)
+
+	//
+	BatchLoad(ctx, ac, v, d, dblast)
+}
+
+func InitialLoad(ctx context.Context, v *viper.Viper, d *db.DBClient) error {
+	// FETCH TUITS
+	_, err := SaveLikedToDB(ctx, "fulltuits.jsonl", true, v, d)
+	return err
+}
+
+func BatchLoad(ctx context.Context, ac auth.AuthClient, v *viper.Viper, d *db.DBClient, dblast string) {
 	lksClient := lks.NewLKSClient(ac, v)
-	last, err := GetLastWeekLikedTwits(lksClient, v)
+	last, err := GetLastWeekLikedTwits(lksClient, v, dblast)
 	if err != nil {
 		log.Println(err)
 	}
-
-	ctx := context.Background()
-	lastS := viper.Get("tuits.last_saved_tuit")
-	if last != lastS {
-		_, err = SaveLikedToDB(ctx, lksClient.GetConfigCurrentPartFilename(), false, v)
+	if dblast != last {
+		_, err = SaveLikedToDB(ctx, lksClient.GetConfigCurrentPartFilename(), false, v, d)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		c, err := s3batch.NewAWSClient("twittlks")
+		if err != nil {
+			log.Fatalln(err)
+		}
+		err = c.UploadFile(ctx, "twittlks", "part_twitts", lksClient.GetConfigCurrentPartFilename())
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
+
 }
 
-func SaveLikedToDB(ctx context.Context, filename string, newDB bool, v *viper.Viper) (string, error) {
+func OpenDB() *db.DBClient {
+	d := db.OpenSQLConn()
+	d.OpenBUN()
+	return d
+}
+
+func SaveLikedToDB(ctx context.Context, filename string, newDB bool, v *viper.Viper, d *db.DBClient) (string, error) {
 	tl, err := db.ReadLineFromFile(filename)
 	if err != nil {
 		return "", err
 	}
-	d := db.OpenSQLConn()
-	d.OpenBUN()
+
 	if err = d.CreateTables(ctx, newDB); err != nil {
 		return "", err
 	}
@@ -79,8 +112,11 @@ func SaveLikedToDB(ctx context.Context, filename string, newDB bool, v *viper.Vi
 	return lastTL, nil
 }
 
-func GetLastWeekLikedTwits(lksClient *lks.LksClient, v *viper.Viper) (string, error) {
-	last, err := lksClient.FetchLksCurrentWeekFromConfig()
+func GetLastWeekLikedTwits(lksClient *lks.LksClient, v *viper.Viper, last string) (string, error) {
+	if last == "" {
+		return "", fmt.Errorf("need to load first liked tuits to db")
+	}
+	last, err := lksClient.FetchLksCurrentWeekFromConfig(last)
 	if err != nil {
 		return last, err
 	}
