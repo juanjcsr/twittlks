@@ -20,8 +20,8 @@ type DBClient struct {
 	BunDB bun.DB
 }
 
-func OpenSQLConn() *DBClient {
-	dsn := "postgres://juan.sanchez:@localhost:5432/twitlks?sslmode=disable"
+func OpenSQLConn(url string) *DBClient {
+	dsn := url
 
 	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 

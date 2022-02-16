@@ -43,9 +43,18 @@ func main() {
 	viper.Set("app.granted_date", tokens.GrantedDate)
 	viper.WriteConfig()
 
+	dburl := viper.GetString("db.url")
+	if err != nil {
+		log.Fatalln("no url defined in tokens.yaml")
+	}
+
 	ctx := context.Background()
+	s3c, err := s3batch.NewAWSClient("twittlks")
+	if err != nil {
+		log.Fatalln(err)
+	}
 	v := viper.GetViper()
-	d := OpenDB()
+	d := OpenDB(dburl)
 	dblast, err := d.GetLastInsertedTuit(ctx)
 	if err != nil {
 		log.Fatalln(err)
@@ -55,7 +64,7 @@ func main() {
 	// InitialLoad(ctx, v, d)
 
 	//
-	BatchLoad(ctx, ac, v, d, dblast)
+	BatchLoad(ctx, ac, v, d, dblast, s3c)
 }
 
 func InitialLoad(ctx context.Context, v *viper.Viper, d *db.DBClient) error {
@@ -64,7 +73,7 @@ func InitialLoad(ctx context.Context, v *viper.Viper, d *db.DBClient) error {
 	return err
 }
 
-func BatchLoad(ctx context.Context, ac auth.AuthClient, v *viper.Viper, d *db.DBClient, dblast string) {
+func BatchLoad(ctx context.Context, ac auth.AuthClient, v *viper.Viper, d *db.DBClient, dblast string, c *s3batch.S3Client) {
 	lksClient := lks.NewLKSClient(ac, v)
 	last, err := GetLastWeekLikedTwits(lksClient, v, dblast)
 	if err != nil {
@@ -75,10 +84,10 @@ func BatchLoad(ctx context.Context, ac auth.AuthClient, v *viper.Viper, d *db.DB
 		if err != nil {
 			log.Fatalln(err)
 		}
-		c, err := s3batch.NewAWSClient("twittlks")
-		if err != nil {
-			log.Fatalln(err)
-		}
+		// c, err := s3batch.NewAWSClient("twittlks")
+		// if err != nil {
+		// 	log.Fatalln(err)
+		// }
 		err = c.UploadFile(ctx, "twittlks", "part_twitts", lksClient.GetConfigCurrentPartFilename())
 		if err != nil {
 			log.Fatalln(err)
@@ -87,8 +96,8 @@ func BatchLoad(ctx context.Context, ac auth.AuthClient, v *viper.Viper, d *db.DB
 
 }
 
-func OpenDB() *db.DBClient {
-	d := db.OpenSQLConn()
+func OpenDB(u string) *db.DBClient {
+	d := db.OpenSQLConn(u)
 	d.OpenBUN()
 	return d
 }
