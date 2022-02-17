@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"fmt"
 
 	"log"
 	"os"
@@ -74,7 +75,7 @@ func (db *DBClient) CreateTables(ctx context.Context, refresh bool) error {
 func (d *DBClient) GetLastInsertedTuit(ctx context.Context) (string, error) {
 	r, err := d.BunDB.QueryContext(ctx, "select id from tuit_likes order by inserted_at desc limit 1")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("could not open database: %s", err.Error())
 	}
 	defer r.Close()
 	var result string
