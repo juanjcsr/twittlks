@@ -3,6 +3,7 @@ package s3batch
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -26,6 +27,9 @@ type S3API interface {
 	PutObject(ctx context.Context,
 		params *s3.PutObjectInput,
 		optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	GetObject(ctx context.Context,
+		params *s3.GetObjectInput,
+		optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 }
 
 func NewAWSClient(bucketName string) (*S3Client, error) {
@@ -52,6 +56,25 @@ func (c *S3Client) GetBuckets(ctx context.Context) {
 	for _, b := range res.Buckets {
 		fmt.Println(*b.Name + " - - " + b.CreationDate.Format("2006-01-02 15:04:05 Monday"))
 	}
+}
+
+func (c *S3Client) GetFile(ctx context.Context, bucket string, filepath string) (*[]byte, error) {
+	input := &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &filepath,
+	}
+
+	obj, err := c.api.GetObject(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	defer obj.Body.Close()
+
+	body, err := ioutil.ReadAll(obj.Body)
+	if err != nil {
+		return nil, err
+	}
+	return &body, nil
 }
 
 func (c *S3Client) UploadFile(ctx context.Context, bucket string, remotePath string, filename string) error {
