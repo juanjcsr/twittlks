@@ -2,3 +2,4 @@
 tokens.yaml
 test.json
 *.jsonl
+.DS_Store
