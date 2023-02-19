@@ -39,7 +39,6 @@ func FetchFromPage(lksclient *LksClient, c *LksConfig, tl *[]TuitLike, found boo
 			break
 		}
 		*tl = append(*tl, t)
-		log.Printf("new tuit: %s", t.Text)
 	}
 	c.LastPage = lt.Meta.NextToken
 	time.Sleep(5 * time.Second)

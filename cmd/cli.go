@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/juanjcsr/twittlks/auth"
+	"github.com/juanjcsr/twittlks/lks/s3batch"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -23,28 +26,71 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	err := godotenv.Load()
+
+	godotenv.Load()
+	ctx := context.Background()
+	// Load config and access tokens from file
+	err := fetchViperConfig(ctx, "tokens.yaml")
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	if err := rootCmd.Execute(); err != nil {
+		log.Println(err)
+	}
+	//save config file to s3
+	err = uploadConfigFileToS3(ctx, "tokens.yaml")
+	if err != nil {
+		log.Printf("could not upload file to s3: %s", err)
+	}
+}
+
+func fetchViperConfig(ctx context.Context, configName string) error {
 	viper.SetConfigName("tokens")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-	// Load config and access tokens from file
+	if _, err := os.Stat(configName); errors.Is(err, os.ErrNotExist) {
+		log.Println("no local tokens file, fetching from s3...")
+		s3c, err := s3batch.NewAWSClient("twittlks")
+		if err != nil {
+			return err
+		}
 
-	if err := rootCmd.Execute(); err != nil {
-		log.Fatalln(err)
+		data, err := s3c.GetFile(ctx, s3c.Bucket, "config/tokens.yaml")
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(configName, *data, 0644)
+		if err != nil {
+			return err
+		}
+		log.Printf("writen tokens file to: %s", configName)
 	}
+	if err := viper.ReadInConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func uploadConfigFileToS3(ctx context.Context, filename string) error {
+	log.Println("uploading config file to s3...")
+	s3c, err := s3batch.NewAWSClient("twittlks")
+	if err != nil {
+		return err
+	}
+
+	err = s3c.UploadFile(ctx, s3c.Bucket, "config", filename)
+	if err != nil {
+		return err
+	}
+	log.Println("finish uploading config file to s3")
+	return nil
 }
 
 func setupViperConfig() (*auth.AccessTokens, error) {
-	err := viper.ReadInConfig()
-	if err != nil {
-		fmt.Println("fatal error config file, default \n", err)
-		os.Exit(1)
-	}
-
 	expiresIn := viper.GetInt("app.expires")
 	tokenType := viper.GetString("app.token_type")
 	accessToken := viper.GetString("app.access_token")
@@ -69,5 +115,5 @@ func setupViperConfig() (*auth.AccessTokens, error) {
 		GrantedDate:  lastDate,
 		Expired:      expired,
 	}
-	return &tokens, err
+	return &tokens, nil
 }
