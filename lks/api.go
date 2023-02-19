@@ -99,7 +99,7 @@ type Media struct {
 	Height          int    `json:"height,omitempty"`
 	Width           int    `json:"width,omitempty"`
 	PreviewImageURL string `json:"preview_image_url,omitempty"`
-	MediaKey        string `json:"media_key,omitempty"`
+	MediaKey        string `json:"media_key,omitempty" bun:",pk"`
 	Type            string `json:"type,omitempty"`
 	URL             string `json:"url,omitempty"`
 	TuitID          string
